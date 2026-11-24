@@ -8160,6 +8160,13 @@ bool Tab::tree_sel_change_delayed(wxCommandEvent& event)
     if (m_active_page == page)
         return false;
 
+#ifdef __WXMSW__
+    // Experimental A/B switch for the two global process pages used in the latency probe.
+    auto is_probe_page = [](Page *p) { return p && (p->title() == "Quality" || p->title() == "Strength"); };
+    const bool reuse = wxGetEnv("ORCA_TEST_PAGE_REUSE", nullptr) && this == wxGetApp().get_tab(Preset::TYPE_PRINT) &&
+                       is_probe_page(m_active_page) && is_probe_page(page);
+    Page *outgoing = m_active_page;
+#endif
     m_active_page = page;
     update_variant_sizer_visibility();
 
@@ -8178,8 +8185,19 @@ bool Tab::tree_sel_change_delayed(wxCommandEvent& event)
 
     try {
         m_page_view->Freeze();
-        // clear pages from the controls
-        clear_pages();
+#ifdef __WXMSW__
+        if (reuse) {
+            m_highlighter.invalidate();
+            for (auto &group : outgoing->m_optgroups)
+                if (group->sizer) outgoing->vsizer()->Show(group->sizer, false);
+            if (!page->build_pending()) {
+                for (auto &group : page->m_optgroups)
+                    page->vsizer()->Show(group->sizer, true);
+                page->reload_config();
+            }
+        } else
+#endif
+            clear_pages();
         throw_if_canceled();
 
         //BBS: GUI refactor
