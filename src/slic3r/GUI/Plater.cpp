@@ -23882,6 +23882,10 @@ int Plater::select_plate_by_hover_id(int hover_id, bool right_click, bool isModi
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": enter, hover_id %1%, plate_index %2%, action %3%")%hover_id % plate_index %action;
     if (action == 0)
     {
+#ifdef __WXMSW__
+        if (right_click && plate_index == p->partplate_list.get_curr_plate_index() && wxGetEnv("ORCA_TEST_SKIP_PLATE_RESELECT", nullptr))
+            return 0;
+#endif
         //select plate
         ret = p->partplate_list.select_plate(plate_index);
         if (!ret) {
