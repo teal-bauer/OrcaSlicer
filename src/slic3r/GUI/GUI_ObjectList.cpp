@@ -3,6 +3,7 @@
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/LifecycleEvents.hpp"
 #include "GUI_ObjectList.hpp"
+#include <cstdlib>
 #include "GUI_Factories.hpp"
 //#include "GUI_ObjectLayers.hpp"
 #include "GUI_App.hpp"
@@ -5486,7 +5487,11 @@ void ObjectList::update_selections_on_canvas()
 
     if (canvas_type != GLCanvas3D::ECanvasType::CanvasPreview)
         wxGetApp().plater()->get_current_canvas3D()->update_gizmos_on_off_state();
-    wxGetApp().plater()->canvas3D()->render();
+    static const bool defer_prepare_render = std::getenv("ORCA_TEST_DEFER_TREE_RENDER") != nullptr;
+    if (defer_prepare_render && canvas_type == GLCanvas3D::ECanvasType::CanvasView3D)
+        canvas->set_as_dirty();
+    else
+        wxGetApp().plater()->canvas3D()->render();
 }
 
 void ObjectList::select_item(const wxDataViewItem& item)
