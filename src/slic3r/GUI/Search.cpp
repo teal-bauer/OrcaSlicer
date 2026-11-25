@@ -1,4 +1,6 @@
 #include "Search.hpp"
+#include <chrono>
+#include <boost/log/trivial.hpp>
 #include "OptionStateRegistry.hpp"
 
 #include <wx/app.h>
@@ -649,8 +651,13 @@ void SearchDialog::OnInputText(wxCommandEvent &)
     search_line2->SetInsertionPointEnd();
     wxString input_string = search_line2->GetValue();
     if (input_string == wxEmptyString) input_string.Clear();
+    const auto before = std::chrono::steady_clock::now();
     searcher->search(into_u8(input_string), true, search_type);
+    const auto filtered = std::chrono::steady_clock::now();
     update_list();
+    BOOST_LOG_TRIVIAL(warning) << "search input us: filter=" << std::chrono::duration_cast<std::chrono::microseconds>(filtered - before).count()
+        << " list=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - filtered).count()
+        << " matches=" << searcher->found_options().size();
 }
 
 void SearchDialog::OnLeftUpInTextCtrl(wxEvent &event)
