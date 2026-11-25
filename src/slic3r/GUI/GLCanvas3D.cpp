@@ -5830,6 +5830,7 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
 
                 if (m_picking_enabled && (m_gizmos.is_allow_multi_select_parts_or_objects() || !evt.CmdDown()) && (!m_hover_volume_idxs.empty())) {
                     if (evt.LeftDown() && !m_hover_volume_idxs.empty()) {
+                        const auto click_begin = std::chrono::steady_clock::now();
                         int volume_idx = get_first_hover_volume_idx();
                         bool already_selected = m_selection.contains_volume(volume_idx);
                         bool ctrl_down = evt.CmdDown();
@@ -5871,12 +5872,17 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
 
                         // propagate event through callback
                         if (curr_idxs != m_selection.get_volume_idxs()) {
+                            const auto selected = std::chrono::steady_clock::now();
                             if (m_selection.is_empty())
                                 m_gizmos.reset_all_states();
                             else
                                 m_gizmos.refresh_on_off_state();
 
+                            const auto refreshed = std::chrono::steady_clock::now();
                             m_gizmos.update_data();
+                            BOOST_LOG_TRIVIAL(warning) << "model click us: select=" << std::chrono::duration_cast<std::chrono::microseconds>(selected - click_begin).count()
+                                << " gizmo_refresh=" << std::chrono::duration_cast<std::chrono::microseconds>(refreshed - selected).count()
+                                << " gizmo_data=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - refreshed).count();
                             post_event(SimpleEvent(EVT_GLCANVAS_OBJECT_SELECT));
                             m_dirty = true;
                         }
