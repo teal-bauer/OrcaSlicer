@@ -1,4 +1,6 @@
 #include "GUI_ObjectSettings.hpp"
+#include <chrono>
+#include <boost/log/trivial.hpp>
 #include "GUI_ObjectList.hpp"
 #include "Tab.hpp"
 #include "MainFrame.hpp"
@@ -288,10 +290,16 @@ bool ObjectSettings::update_settings_list()
         ;// m_tab_active = tab_plate;
     }
     else if (is_object_settings) {
+        const auto begin = std::chrono::steady_clock::now();
         tab_plate->set_model_config(plate_configs);
+        const auto plate = std::chrono::steady_clock::now();
         tab_object->set_model_config(object_configs);
+        const auto object = std::chrono::steady_clock::now();
         tab_volume->set_model_config({});
         tab_layer->set_model_config({});
+        BOOST_LOG_TRIVIAL(warning) << "sidebar config us: plate=" << std::chrono::duration_cast<std::chrono::microseconds>(plate - begin).count()
+            << " object=" << std::chrono::duration_cast<std::chrono::microseconds>(object - plate).count()
+            << " clear=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - object).count();
         //m_tab_active = tab_object;
     }   
     else if (is_volume_settings) {
@@ -315,7 +323,10 @@ bool ObjectSettings::update_settings_list()
         tab_layer->set_model_config({});
         //m_tab_active = nullptr;
     }
+    const auto before_active = std::chrono::steady_clock::now();
     ((ParamsPanel*) tab_object->GetParent())->set_active_tab(nullptr);
+    if (is_object_settings)
+        BOOST_LOG_TRIVIAL(warning) << "sidebar active us=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - before_active).count();
     return true;
 }
 
