@@ -1,4 +1,5 @@
 #include "Preferences.hpp"
+#include <chrono>
 #include "slic3r/plugin/host/PluginPages.hpp"
 #include "CloudProvider.hpp"
 #include "ColorPickerDialog.hpp"
@@ -1600,7 +1601,9 @@ PreferencesDialog::PreferencesDialog(wxWindow *parent, wxWindowID id, const wxSt
     SetBackgroundColour(*wxWHITE);
     SetMinSize(DESIGN_WINDOW_SIZE);
     create();
+    const auto before_theme = std::chrono::steady_clock::now();
     wxGetApp().UpdateDlgDarkUI(this);
+    BOOST_LOG_TRIVIAL(warning) << "preferences us: theme=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - before_theme).count();
 }
 
 void PreferencesDialog::create()
@@ -1617,7 +1620,9 @@ void PreferencesDialog::create()
     m_pref_tabs->Bind(wxEVT_RIGHT_DOWN, [](auto &e) {}); // disable right select
     m_pref_tabs->SetFont(Label::Body_14);
 
+    const auto before_items = std::chrono::steady_clock::now();
     create_items();
+    const auto after_items = std::chrono::steady_clock::now();
 
     m_pref_tabs->Bind(wxEVT_TAB_SEL_CHANGED, [this](wxCommandEvent& e) {
         Freeze();
@@ -1650,6 +1655,8 @@ void PreferencesDialog::create()
     Layout();
     Fit();
     CenterOnParent();
+    BOOST_LOG_TRIVIAL(warning) << "preferences us: items=" << std::chrono::duration_cast<std::chrono::microseconds>(after_items - before_items).count()
+        << " tabs_and_layout=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - after_items).count();
 }
 
 PreferencesDialog::~PreferencesDialog()
