@@ -3,6 +3,7 @@
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/LifecycleEvents.hpp"
 #include "GUI_ObjectList.hpp"
+#include <chrono>
 #include "GUI_Factories.hpp"
 //#include "GUI_ObjectLayers.hpp"
 #include "GUI_App.hpp"
@@ -1292,13 +1293,15 @@ void ObjectList::selection_changed()
     if (wxGetApp().is_closing()) return;
     if (m_prevent_list_events) return;
 
+    const auto begin = std::chrono::steady_clock::now();
     fix_multiselection_conflicts();
-
     fix_cut_selection();
+    const auto fixed = std::chrono::steady_clock::now();
 
     // update object selection on Plater
     if (!m_prevent_canvas_selection_update)
         update_selections_on_canvas();
+    const auto canvas = std::chrono::steady_clock::now();
 
     // to update the toolbar and info sizer
     if (!GetSelection() || m_objects_model->GetItemType(GetSelection()) == itObject) {
@@ -1323,7 +1326,11 @@ void ObjectList::selection_changed()
         }
     }
 
+    const auto before_sidebar = std::chrono::steady_clock::now();
     part_selection_changed();
+    auto us = [](auto from, auto to) { return std::chrono::duration_cast<std::chrono::microseconds>(to - from).count(); };
+    BOOST_LOG_TRIVIAL(warning) << "tree click us: fix=" << us(begin, fixed) << " canvas=" << us(fixed, canvas)
+        << " events=" << us(canvas, before_sidebar) << " sidebar=" << us(before_sidebar, std::chrono::steady_clock::now());
 }
 
 void ObjectList::copy_layers_to_clipboard()
