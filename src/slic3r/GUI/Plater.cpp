@@ -1,4 +1,5 @@
 #include "Plater.hpp"
+#include <chrono>
 #include "LazyPage.hpp"
 #include "../Utils/NetworkAgent.hpp"
 #include "IPrinterAgent.hpp"
@@ -13562,6 +13563,8 @@ void Plater::priv::on_slicing_update(SlicingStatusEvent &evt)
 
 void Plater::priv::on_slicing_completed(wxCommandEvent & evt)
 {
+    const auto start = std::chrono::steady_clock::now();
+    ScopeGuard timer([start]() { BOOST_LOG_TRIVIAL(warning) << "completion UI slicing us=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now()-start).count(); });
     BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(": event_type %1%, string %2%") % evt.GetEventType() % evt.GetString();
     //BBS: add slice project logic
     if (m_slice_all && (m_cur_slice_plate < (partplate_list.get_plate_count() - 1))) {
@@ -13677,6 +13680,8 @@ bool Plater::priv::warnings_dialog()
 //BBS: add project slice logic
 void Plater::priv::on_process_completed(SlicingProcessCompletedEvent &evt)
 {
+    const auto start = std::chrono::steady_clock::now();
+    ScopeGuard timer([start]() { BOOST_LOG_TRIVIAL(warning) << "completion UI process us=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now()-start).count(); });
     BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(": enter, m_ignore_event %1%, status %2%")%m_ignore_event %evt.status();
     //BBS:ignore cancel event for some special case
     if (m_ignore_event)
@@ -13859,7 +13864,9 @@ void Plater::priv::on_process_completed(SlicingProcessCompletedEvent &evt)
     {
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(":finished, reload print soon");
         m_is_slicing = false;
+        const auto preview_start = std::chrono::steady_clock::now();
         this->preview->reload_print(false);
+        BOOST_LOG_TRIVIAL(warning) << "completion UI preview us=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now()-preview_start).count();
         q->mark_plate_toolbar_image_dirty();
         q->SetDropTarget(new PlaterDropTarget(*main_frame, *q));
     }
