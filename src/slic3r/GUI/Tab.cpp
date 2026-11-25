@@ -8220,8 +8220,12 @@ bool Tab::tree_sel_change_delayed(wxCommandEvent& event)
 #endif
         });
 
+    bool freeze_page = true;
+#ifdef __WXMSW__
+    freeze_page = !(reuse && !page->build_pending() && wxGetEnv("ORCA_TEST_SKIP_WARM_FREEZE", nullptr));
+#endif
     try {
-        m_page_view->Freeze();
+        if (freeze_page) m_page_view->Freeze();
 #ifdef __WXMSW__
         if (reuse) {
             m_highlighter.invalidate();
@@ -8255,11 +8259,11 @@ bool Tab::tree_sel_change_delayed(wxCommandEvent& event)
         throw_if_canceled();
         // Refresh();
 
-        m_page_view->Thaw();
+        if (freeze_page) m_page_view->Thaw();
     } catch (const UIBuildCanceled&) {
 	    if (m_active_page)
 		    m_active_page->clear();
-        m_page_view->Thaw();
+        if (freeze_page) m_page_view->Thaw();
         return true;
     }
 
