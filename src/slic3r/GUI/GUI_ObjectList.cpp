@@ -3,6 +3,7 @@
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/LifecycleEvents.hpp"
 #include "GUI_ObjectList.hpp"
+#include <chrono>
 #include "GUI_Factories.hpp"
 //#include "GUI_ObjectLayers.hpp"
 #include "GUI_App.hpp"
@@ -5357,8 +5358,10 @@ void ObjectList::update_selections()
     else {
         select_items(sels);
 
+        const auto selected = std::chrono::steady_clock::now();
         // Scroll selected Item in the middle of an object list
         ensure_current_item_visible();
+        BOOST_LOG_TRIVIAL(warning) << "tree selection us: scroll=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - selected).count();
     }
 }
 
@@ -5569,6 +5572,7 @@ void ObjectList::select_items(const std::vector<ObjectVolumeID>& ov_ids)
 
 void ObjectList::select_items(const wxDataViewItemArray& sels)
 {
+    const auto begin = std::chrono::steady_clock::now();
     m_prevent_list_events = true;
     m_prevent_list_manipulation = true;
     m_last_selected_item = sels.empty() ? wxDataViewItem(nullptr) : sels.back();
@@ -5583,7 +5587,10 @@ void ObjectList::select_items(const wxDataViewItemArray& sels)
         on_plate_selected(curr_plate_idx);
     }
 
+    const auto selected = std::chrono::steady_clock::now();
     part_selection_changed();
+    BOOST_LOG_TRIVIAL(warning) << "tree selection us: set=" << std::chrono::duration_cast<std::chrono::microseconds>(selected - begin).count()
+        << " part_changed=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - selected).count();
 
     m_prevent_list_manipulation = false;
     m_prevent_list_events = false;
