@@ -1,5 +1,6 @@
 //#include "slic3r/Utils/Serial.hpp"
 #include "Tab.hpp"
+#include <wx/stopwatch.h>
 #include "PresetHints.hpp"
 #include "libslic3r/IMEXHelpers.hpp"
 #include "libslic3r/PresetBundle.hpp"
@@ -8063,12 +8064,18 @@ void Tab::activate_selected_page(std::function<void()> throw_if_canceled)
         m_page_view->Hide();
     ScopeGuard show_view([this, hide_view] { if (hide_view) m_page_view->Show(); });
 #endif
+    wxStopWatch timer;
     m_active_page->activate(m_mode, throw_if_canceled);
+    const auto activate_ms = timer.Time();
     update_changed_ui();
+    const auto decorate_ms = timer.Time();
     update_description_lines();
     if (m_active_page && !(m_active_page->title() == "Dependencies"))
         toggle_options();
+    const auto toggle_ms = timer.Time();
     m_active_page->update_visibility(m_mode, true); // for taggle line
+    BOOST_LOG_TRIVIAL(warning) << "page timings ms: activate=" << activate_ms << " dirty=" << decorate_ms - activate_ms
+        << " toggle=" << toggle_ms - decorate_ms << " visibility=" << timer.Time() - toggle_ms;
 }
 
 //BBS: GUI refactor
