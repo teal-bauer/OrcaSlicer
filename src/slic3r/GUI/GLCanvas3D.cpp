@@ -3432,6 +3432,7 @@ void GLCanvas3D::_render_scene(const Camera& camera, const Size& cnv_size)
     /* view3D render*/
     int hover_id = (m_hover_plate_idxs.size() > 0)?m_hover_plate_idxs.front():-1;
     if (m_canvas_type == ECanvasType::CanvasView3D) {
+        const auto begin = std::chrono::steady_clock::now();
         // m_show_bed gates the plate list too: hiding the bed but leaving its grid and outline
         // floating would read as a rendering fault rather than a deliberate view option.
         if (show_bed) {
@@ -3453,12 +3454,15 @@ void GLCanvas3D::_render_scene(const Camera& camera, const Size& cnv_size)
             _render_cad_grid(camera.get_view_matrix(), camera.get_projection_matrix());
         m_frame_profiler.mark("plates");
         //BBS: add outline logic
+        const auto after_plates = std::chrono::steady_clock::now();
         // Depth pass for object-on-object and self shadows; consumed by the gouraud shader below.
         _render_shadows(camera.get_view_matrix(), camera.get_projection_matrix());
         m_frame_profiler.mark("shadows");
+        const auto after_shadows = std::chrono::steady_clock::now();
         _render_objects(GLVolumeCollection::ERenderType::Opaque, !m_gizmos.is_running());
         _render_below_plate_volumes();
         m_frame_profiler.mark("objects");
+        const auto after_opaque = std::chrono::steady_clock::now();
         // Collision previews follow the same visibility rule as the bed.
         const bool show_exclusion_intersections = m_show_bed &&
             (!m_main_toolbar.is_enabled() ||
@@ -3473,8 +3477,14 @@ void GLCanvas3D::_render_scene(const Camera& camera, const Size& cnv_size)
         _render_objects(GLVolumeCollection::ERenderType::Transparent, !m_gizmos.is_running());
         _render_wireframe_overlay();
         m_frame_profiler.mark("transparent");
+        const auto after_transparent = std::chrono::steady_clock::now();
         _render_selection_outline();
         m_frame_profiler.mark("outline");
+        const auto end = std::chrono::steady_clock::now();
+        auto ms = [](auto a, auto b) { return std::chrono::duration_cast<std::chrono::milliseconds>(b-a).count(); };
+        if (ms(begin,end) >= 20) BOOST_LOG_TRIVIAL(warning) << "prepare frame drag=" << m_mouse.dragging << " plates=" << ms(begin,after_plates)
+            << " shadows=" << ms(after_plates,after_shadows) << " opaque=" << ms(after_shadows,after_opaque)
+            << " transparent=" << ms(after_opaque,after_transparent) << " outline=" << ms(after_transparent,end);
     }
     /* preview render */
     else if (m_canvas_type == ECanvasType::CanvasPreview && m_render_preview) {
