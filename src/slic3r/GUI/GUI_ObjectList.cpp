@@ -4110,10 +4110,14 @@ void ObjectList::part_selection_changed()
     update_min_height();
 
     Sidebar& panel = wxGetApp().sidebar();
-    panel.Freeze();
-
-
     const ItemType type = m_objects_model->GetItemType(item);
+    bool freeze_sidebar = true;
+#ifdef __WXMSW__
+    freeze_sidebar = !(type == itObject && std::getenv("ORCA_TEST_SKIP_OBJECT_FREEZE"));
+#endif
+    if (freeze_sidebar)
+        panel.Freeze();
+
     if (!(type & itLayer)) {
         wxGetApp().plater()->canvas3D()->handle_sidebar_focus_event("", false);
     }
@@ -4124,7 +4128,8 @@ void ObjectList::part_selection_changed()
     wxGetApp().plater()->show_object_info();
 
     panel.Layout();
-    panel.Thaw();
+    if (freeze_sidebar)
+        panel.Thaw();
 }
 
 // Add new SettingsItem for parent_item if it doesn't exist, or just update a digest according to new config
