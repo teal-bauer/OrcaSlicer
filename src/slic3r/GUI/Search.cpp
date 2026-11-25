@@ -701,7 +701,7 @@ void SearchDialog::update_list()
             row->m_text = str;
             row->m_availability = availability;
             row->SetToolTip(tip);
-            row->SetMinSize(wxSize(panel->GetSize().GetWidth(), (availability.empty() ? 3 : 5) * em));
+            row->SetMinSize(wxSize(m_scrolledWindow->GetSize().GetWidth(), (availability.empty() ? 3 : 5) * em));
             row->Show();
             row->Refresh();
         } else {
@@ -714,7 +714,11 @@ void SearchDialog::update_list()
 
     for (size_t i = filters.size(); i < reusable_rows.size(); ++i)
         reusable_rows[i]->Hide();
-    list->Fit(panel);
+    // An empty result set has zero height; keep the row width for the next query.
+    if (reuse)
+        panel->SetSize(wxSize(m_scrolledWindow->GetSize().GetWidth(), list->CalcMin().GetHeight()));
+    else
+        list->Fit(panel);
     panel->Layout();
     m_scrolledWindow->SetScrollbars(1, 1, 0, panel->GetSize().GetHeight());
     m_sizer_body->Fit(m_client_panel);
