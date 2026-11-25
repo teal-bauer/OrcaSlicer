@@ -142,6 +142,7 @@ namespace GUI {
         };
     private:
         RenderData m_render_data;
+        bool m_draw_linear_mesh = false;
 
         // By default the vertex and index buffers data are sent to gpu at the first call to render() method.
         // If you need to initialize a model from outside the main thread, so that a call to render() may happen

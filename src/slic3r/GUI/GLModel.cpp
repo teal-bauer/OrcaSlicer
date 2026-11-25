@@ -1,5 +1,6 @@
 #include "libslic3r/libslic3r.h"
 #include "GLModel.hpp"
+#include <cstdlib>
 
 #include "3DScene.hpp"
 #include "GUI_App.hpp"
@@ -443,6 +444,9 @@ void GLModel::init_from(const indexed_triangle_set& its)
     data.reserve_vertices(3 * its.indices.size());
     data.reserve_indices(3 * its.indices.size());
 
+    // Both normal layouts below emit one vertex per corner in triangle order.
+    m_draw_linear_mesh = std::getenv("ORCA_TEST_LINEAR_MESH_DRAW") != nullptr;
+
     // CLI thumbnail generation can initialize models without a wx application.
     const bool smooth_normals_enabled = wxApp::GetInstance() != nullptr && wxGetApp().app_config != nullptr &&
                                         wxGetApp().app_config->get_bool(SETTING_OPENGL_PHONG_SMOOTH_NORMALS);
@@ -546,6 +550,7 @@ bool GLModel::init_from_file(const std::string& filename)
 
 void GLModel::reset()
 {
+    m_draw_linear_mesh = false;
     // release gpu memory
     if (m_render_data.ibo_id > 0) {
         glsafe(::glDeleteBuffers(1, &m_render_data.ibo_id));
@@ -674,7 +679,11 @@ void GLModel::render(const std::pair<size_t, size_t>& range, GLShaderProgram* sh
     shader->set_uniform("uniform_color", data.color);
 
     glsafe(::glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_render_data.ibo_id));
-    glsafe(::glDrawElements(mode, range.second - range.first, index_type, (const void*)(range.first * Geometry::index_stride_bytes(data))));
+    if (m_draw_linear_mesh) {
+        glsafe(::glDrawArrays(mode, range.first, range.second - range.first));
+    } else {
+        glsafe(::glDrawElements(mode, range.second - range.first, index_type, (const void*)(range.first * Geometry::index_stride_bytes(data))));
+    }
     glsafe(::glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
 
     if (tex_coord_id != -1)
