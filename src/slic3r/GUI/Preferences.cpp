@@ -1425,7 +1425,6 @@ wxBoxSizer *PreferencesDialog::create_item_network_plugin_version(wxString title
     m_network_version_combo->GetDropDown().Bind(wxEVT_COMBOBOX, [this](wxCommandEvent& e) {
         e.Skip(); // order-independent flag read after this handler returns; every path just returns
         int selection = e.GetSelection();
-        build_page(selection);
         if (selection < 0 || selection >= (int) m_available_versions.size())
             return;
 
@@ -1627,6 +1626,7 @@ void PreferencesDialog::create()
             m_pref_tabs->SetFocus();
         #endif
         int selection = e.GetSelection();
+        build_page(selection);
         for (size_t i = 0; i < m_pref_tabs->GetCount(); ++i){
             m_pref_tabs->SetItemBold(i, i == selection);
             f_sizers[i]->Show(i == selection);
