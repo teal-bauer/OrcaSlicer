@@ -1,4 +1,5 @@
 #include "Search.hpp"
+#include <cstdlib>
 #include "OptionStateRegistry.hpp"
 
 #include <wx/app.h>
@@ -664,33 +665,58 @@ void SearchDialog::update_list()
 #ifndef __WXGTK__
     Freeze();
 #endif
-    m_scrolledWindow->Destroy();
+#ifdef __WXMSW__
+    const bool reuse = std::getenv("ORCA_TEST_SEARCH_ROW_REUSE") != nullptr;
+#else
+    const bool reuse = false;
+#endif
+    wxWindow *panel = reuse_panel;
+    if (!panel) {
+        m_scrolledWindow->Destroy();
 
-    m_scrolledWindow = new ScrolledWindow(m_client_panel, wxID_ANY, wxDefaultPosition, wxSize(POPUP_WIDTH * em - (em + em / 2), POPUP_HEIGHT * em - em), wxVSCROLL, 6, 6);
-    m_scrolledWindow->SetMarginColor(StateColor::darkModeColorFor(m_bg_colour));
-    m_scrolledWindow->SetScrollbarColor(StateColor::darkModeColorFor(m_thumb_color));
-    m_scrolledWindow->SetBackgroundColour(StateColor::darkModeColorFor(m_bg_colour));
+        m_scrolledWindow = new ScrolledWindow(m_client_panel, wxID_ANY, wxDefaultPosition, wxSize(POPUP_WIDTH * em - (em + em / 2), POPUP_HEIGHT * em - em), wxVSCROLL, 6, 6);
+        m_scrolledWindow->SetMarginColor(StateColor::darkModeColorFor(m_bg_colour));
+        m_scrolledWindow->SetScrollbarColor(StateColor::darkModeColorFor(m_thumb_color));
+        m_scrolledWindow->SetBackgroundColour(StateColor::darkModeColorFor(m_bg_colour));
 
-    auto m_listsizer = new wxBoxSizer(wxVERTICAL);
-    auto m_listPanel = new wxWindow(m_scrolledWindow->GetPanel(), -1);
-    m_listPanel->SetBackgroundColour(StateColor::darkModeColorFor(m_bg_colour));
-    m_listPanel->SetSize(wxSize(m_scrolledWindow->GetSize().GetWidth(), -1));
+        auto m_listsizer = new wxBoxSizer(wxVERTICAL);
+        auto m_listPanel = new wxWindow(m_scrolledWindow->GetPanel(), -1);
+        m_listPanel->SetBackgroundColour(StateColor::darkModeColorFor(m_bg_colour));
+        m_listPanel->SetSize(wxSize(m_scrolledWindow->GetSize().GetWidth(), -1));
 
+        m_listPanel->SetSizer(m_listsizer);
+        m_sizer_body->Add(m_scrolledWindow, 0, wxEXPAND | wxALL, em);
+        panel = m_listPanel;
+        if (reuse) reuse_panel = panel;
+    }
+    auto list = panel->GetSizer();
     const std::vector<FoundOption> &filters = searcher->found_options();
     auto                            index   = 0;
     for (const FoundOption &item : filters) {
         wxString str = from_u8(item.label).Remove(0, 1);
         const wxString availability = option_availability(searcher->get_option(index));
-        auto tmp = new SearchItem(m_listPanel, str, index, this, nullptr, from_u8(item.tooltip).Remove(0, 1), availability);
-        m_listsizer->Add(tmp, 0, wxEXPAND, 0);
+        auto tip = from_u8(item.tooltip).Remove(0, 1);
+        if (reuse && size_t(index) < reusable_rows.size()) {
+            auto row = reusable_rows[index];
+            row->m_text = str;
+            row->m_availability = availability;
+            row->SetToolTip(tip);
+            row->SetMinSize(wxSize(panel->GetSize().GetWidth(), (availability.empty() ? 3 : 5) * em));
+            row->Show();
+            row->Refresh();
+        } else {
+            auto row = new SearchItem(panel, str, index, this, nullptr, tip, availability);
+            list->Add(row, 0, wxEXPAND, 0);
+            if (reuse) reusable_rows.push_back(row);
+        }
         index++;
     }
 
-    m_listPanel->SetSizer(m_listsizer);
-    m_listPanel->Fit();
-    m_scrolledWindow->SetScrollbars(1, 1, 0, m_listPanel->GetSize().GetHeight());
-
-    m_sizer_body->Add(m_scrolledWindow, 0, wxEXPAND | wxALL, em);
+    for (size_t i = filters.size(); i < reusable_rows.size(); ++i)
+        reusable_rows[i]->Hide();
+    list->Fit(panel);
+    panel->Layout();
+    m_scrolledWindow->SetScrollbars(1, 1, 0, panel->GetSize().GetHeight());
     m_sizer_body->Fit(m_client_panel);
     m_sizer_body->Layout();
 #ifndef __WXGTK__

@@ -175,6 +175,8 @@ public:
     Preset::Type     search_type = Preset::TYPE_INVALID;
 
     ScrolledWindow * m_scrolledWindow{nullptr};
+    wxWindow *reuse_panel{nullptr};
+    std::vector<SearchItem*> reusable_rows;
 
     OptionsSearcher *searcher{nullptr};
 
