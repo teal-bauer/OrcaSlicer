@@ -8198,8 +8198,11 @@ bool Tab::tree_sel_change_delayed(wxCommandEvent& event)
         return false;
 
 #ifdef __WXMSW__
-    // Experimental A/B switch for the two global process pages used in the latency probe.
-    auto is_probe_page = [](Page *p) { return p && (p->title() == "Quality" || p->title() == "Strength"); };
+    const bool extra_pages = wxGetEnv("ORCA_TEST_REUSE_SPEED_SUPPORT", nullptr);
+    auto is_probe_page = [extra_pages](Page *p) {
+        return p && (p->title() == "Quality" || p->title() == "Strength" ||
+                     (extra_pages && (p->title() == "Speed" || p->title() == "Support")));
+    };
     const bool reuse = wxGetEnv("ORCA_TEST_PAGE_REUSE", nullptr) && this == wxGetApp().get_tab(Preset::TYPE_PRINT) &&
                        is_probe_page(m_active_page) && is_probe_page(page);
     Page *outgoing = m_active_page;
