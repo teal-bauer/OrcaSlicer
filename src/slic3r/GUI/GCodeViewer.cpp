@@ -3047,8 +3047,12 @@ libvgcode::EReducedDetailMode GCodeViewer::reduced_detail_mode_from_string(const
 
 void GCodeViewer::set_layers_z_range(const std::array<unsigned int, 2>& layers_z_range)
 {
+    const auto begin = std::chrono::steady_clock::now();
     m_viewer.set_layers_view_range(static_cast<uint32_t>(layers_z_range[0]), static_cast<uint32_t>(layers_z_range[1]));
+    const auto ranged = std::chrono::steady_clock::now();
     update_moves_slider(true);
+    BOOST_LOG_TRIVIAL(warning) << "preview layer=" << layers_z_range[1] << " us: range=" << std::chrono::duration_cast<std::chrono::microseconds>(ranged - begin).count()
+        << " moves=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - ranged).count();
 }
 
 class ToolpathsObjExporter
