@@ -3215,6 +3215,7 @@ void GLCanvas3D::_render_frame(bool scene_dirty, bool only_init)
         }
     }
 
+    const auto preview_begin = std::chrono::steady_clock::now();
     const bool overlay_tick = m_fps_overlay_tick;
     m_fps_overlay_tick = false;
 
@@ -3236,6 +3237,7 @@ void GLCanvas3D::_render_frame(bool scene_dirty, bool only_init)
             m_render_stats.increment_scene_fps_counter();
     }
 
+    const auto preview_scene_done = std::chrono::steady_clock::now();
     if (m_canvas_type == ECanvasType::CanvasPreview && m_render_preview) {
         // BBS: GUI refactor: add canvas size as parameters
         _render_gcode_overlay(cnv_size.get_width(), cnv_size.get_height());
@@ -3378,7 +3380,13 @@ void GLCanvas3D::_render_frame(bool scene_dirty, bool only_init)
     // belongs to: on Mesa/X11 that is a fatal BadMatch, not the no-op it is on other platforms. Draws
     // already issued before this point cannot be redirected - only this swap is protected.
     if (m_canvas->IsShownOnScreen() && _set_current()) {
+        const auto before_swap = std::chrono::steady_clock::now();
         m_canvas->SwapBuffers();
+        if (m_canvas_type == ECanvasType::CanvasPreview && m_render_preview && m_gcode_viewer.has_data())
+            BOOST_LOG_TRIVIAL(warning) << "preview frame layer=" << m_gcode_viewer.get_layers_slider()->GetHigherValue() << " reused=" << reuse_scene
+                << " us: scene=" << std::chrono::duration_cast<std::chrono::microseconds>(preview_scene_done - preview_begin).count()
+                << " overlay_present_prep=" << std::chrono::duration_cast<std::chrono::microseconds>(before_swap - preview_scene_done).count()
+                << " swap=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - before_swap).count();
         m_frame_profiler.mark("swap");
         if (!overlay_tick)
             m_render_stats.increment_fps_counter();
