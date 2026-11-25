@@ -3,6 +3,7 @@
 ///|/ libvgcode is released under the terms of the AGPLv3 or higher
 ///|/
 #include "ViewerImpl.hpp"
+#include <cstdlib>
 #include "../include/GCodeInputData.hpp"
 #include "Shaders.hpp"
 #include "ShadersES.hpp"
@@ -2437,12 +2438,26 @@ void ViewerImpl::render_segments(const Mat4x4& view_matrix, const Mat4x4& projec
     glsafe(glDisable(GL_CULL_FACE));
 
     // ORCA: of the count enabled segments, the last translucent_count are the translucent ones
-    auto draw = [this, &uni, translucent](size_t count, size_t translucent_count) {
+    auto draw = [this, &uni, translucent, reverse_order](size_t count, size_t translucent_count) {
         const size_t first = translucent ? count - translucent_count : 0;
         if (!m_rendering_shadow_casters)
             count = translucent ? translucent_count : count - translucent_count;
         if (count == 0)
             return;
+#ifndef ENABLE_OPENGL_ES
+        static const bool batch = std::getenv("ORCA_TEST_BATCH_PREVIEW_SEGMENTS") != nullptr;
+        if (batch && !m_rendering_shadow_casters && !translucent && count > 4096) {
+            for (size_t drawn = 0; drawn < count;) {
+                const size_t n = std::min<size_t>(4096, count - drawn);
+                const size_t offset = reverse_order ? count - drawn - n : drawn;
+                glsafe(glUniform1i(uni.instances_count, static_cast<int>(n)));
+                glsafe(glUniform1i(uni.first_instance, static_cast<int>(first + offset)));
+                m_segment_template.render(n);
+                drawn += n;
+            }
+            return;
+        }
+#endif
         glsafe(glUniform1i(uni.instances_count, static_cast<int>(count)));
         glsafe(glUniform1i(uni.first_instance, static_cast<int>(first)));
         if (!m_rendering_shadow_casters) {
