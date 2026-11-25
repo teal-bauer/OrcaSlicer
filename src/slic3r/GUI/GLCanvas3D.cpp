@@ -3096,6 +3096,7 @@ void GLCanvas3D::render(bool only_init)
 
 void GLCanvas3D::_render_frame(bool scene_dirty, bool only_init)
 {
+    const auto frame_start = std::chrono::steady_clock::now();
     if (m_in_render) {
         // if called recursively, return
         m_dirty = true;
@@ -3378,7 +3379,12 @@ void GLCanvas3D::_render_frame(bool scene_dirty, bool only_init)
     // belongs to: on Mesa/X11 that is a fatal BadMatch, not the no-op it is on other platforms. Draws
     // already issued before this point cannot be redirected - only this swap is protected.
     if (m_canvas->IsShownOnScreen() && _set_current()) {
+        const auto before_swap = std::chrono::steady_clock::now();
         m_canvas->SwapBuffers();
+        const auto end = std::chrono::steady_clock::now();
+        auto ms = [](auto from, auto to) { return std::chrono::duration_cast<std::chrono::milliseconds>(to-from).count(); };
+        if (ms(frame_start, end) >= 50)
+            BOOST_LOG_TRIVIAL(warning) << "completion frame pre_ms=" << ms(frame_start, before_swap) << " swap_ms=" << ms(before_swap, end);
         m_frame_profiler.mark("swap");
         if (!overlay_tick)
             m_render_stats.increment_fps_counter();
@@ -4482,6 +4488,8 @@ void GLCanvas3D::set_shell_transparence(float alpha){
 //BBS: add only gcode mode
 void GLCanvas3D::load_gcode_preview(const GCodeProcessorResult& gcode_result, const std::vector<std::string>& str_tool_colors, const std::vector<std::string>& str_color_print_colors, bool only_gcode)
 {
+    const auto start = std::chrono::steady_clock::now();
+    ScopeGuard timer([start]() { BOOST_LOG_TRIVIAL(warning) << "completion geometry ms=" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start).count(); });
     PartPlateList& partplate_list = wxGetApp().plater()->get_partplate_list();
     PartPlate* plate = partplate_list.get_curr_plate();
     const std::vector<BoundingBoxf3>& exclude_bounding_box = plate->get_exclude_areas();
