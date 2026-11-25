@@ -6156,9 +6156,11 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
                     deselect_all();
         }
         else if (evt.RightUp() && !is_layers_editing_enabled()) {
+            const auto begin = std::chrono::steady_clock::now();
             // forces a frame render to ensure that m_hover_volume_idxs is updated even when the user right clicks while
             // the context menu is already shown
             render();
+            const auto picked = std::chrono::steady_clock::now();
             // Orca: do not select the hovered volume when ending a camera pan/rotation
             const bool camera_dragged = m_mouse.ignore_right_up;
             if (!camera_dragged && !m_hover_volume_idxs.empty()) {
@@ -6205,6 +6207,8 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
             logical_pos = logical_pos.cwiseQuotient(Vec2d(factor, factor));
 #endif // ENABLE_RETINA_GL
 
+            BOOST_LOG_TRIVIAL(warning) << "selection probe right-up us: pick_frame=" << std::chrono::duration_cast<std::chrono::microseconds>(picked - begin).count()
+                << " selection_and_redraw=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - picked).count();
             if (!m_mouse.ignore_right_up && m_gizmos.get_current_type() == GLGizmosManager::EType::Undefined) {
                 //BBS post right click event
                 if (!m_hover_plate_idxs.empty() && !plate_icon_popup_shown) {

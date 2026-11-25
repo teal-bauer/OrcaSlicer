@@ -1,4 +1,5 @@
 #include "Plater.hpp"
+#include <chrono>
 #include "LazyPage.hpp"
 #include "../Utils/NetworkAgent.hpp"
 #include "IPrinterAgent.hpp"
@@ -14429,8 +14430,12 @@ void Plater::priv::on_object_select(SimpleEvent& evt)
     if (wxGetApp().is_closing())
         return;
 
+    const auto begin = std::chrono::steady_clock::now();
     wxGetApp().obj_list()->update_selections();
+    const auto synced = std::chrono::steady_clock::now();
     selection_changed();
+    BOOST_LOG_TRIVIAL(warning) << "selection probe object us: tree=" << std::chrono::duration_cast<std::chrono::microseconds>(synced - begin).count()
+        << " selection_changed=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - synced).count();
 }
 
 //BBS: repair model through cgal
@@ -14634,7 +14639,9 @@ void Plater::priv::on_right_click(RBtnEvent& evt)
 //BBS: add part plate related logic
 void Plater::priv::on_plate_right_click(RBtnPlateEvent& evt)
 {
+    const auto begin = std::chrono::steady_clock::now();
     wxMenu *menu = menus.plate_menu();
+    BOOST_LOG_TRIVIAL(warning) << "selection probe plate menu us=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - begin).count();
     show_right_click_menu(evt.data.first, menu);
 }
 
