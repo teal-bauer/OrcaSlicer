@@ -5915,6 +5915,7 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
                 m_canvas->CaptureMouse();
 
             if (!m_mouse.drag.move_requires_threshold) {
+                const auto start = std::chrono::steady_clock::now();
                 m_mouse.dragging = true;
                 if (PartPlate *plate = wxGetApp().plater()->get_partplate_list().get_curr_plate())
                     plate->clear_exclusion_volume_intersections();
@@ -5955,7 +5956,9 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
 
                 TransformationType trafo_type;
                 trafo_type.set_relative();
+                const auto projected = std::chrono::steady_clock::now();
                 m_selection.translate(cur_pos - m_mouse.drag.start_position_3D, trafo_type);
+                const auto translated = std::chrono::steady_clock::now();
                 // Ghost transforms refresh from _render_imex_ghosts via the live GLVolume
                 // lookup, so no explicit update call is needed here.
                 if (current_printer_technology() == ptFFF) {
@@ -5964,6 +5967,9 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
                     else
                         update_compacted_wipe_tower_clearance();
                 }
+                auto us = [](auto a, auto b) { return std::chrono::duration_cast<std::chrono::microseconds>(b-a).count(); };
+                BOOST_LOG_TRIVIAL(warning) << "prepare drag x=" << pos.x() << " project_us=" << us(start, projected)
+                    << " translate_us=" << us(projected, translated) << " clearance_us=" << us(translated, std::chrono::steady_clock::now());
                 // BBS
                 //wxGetApp().obj_manipul()->set_dirty();
                 m_dirty = true;
