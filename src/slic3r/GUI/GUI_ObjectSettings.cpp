@@ -1,4 +1,5 @@
 #include "GUI_ObjectSettings.hpp"
+#include <cstdlib>
 #include "GUI_ObjectList.hpp"
 #include "Tab.hpp"
 #include "MainFrame.hpp"
@@ -290,8 +291,14 @@ bool ObjectSettings::update_settings_list()
     else if (is_object_settings) {
         tab_plate->set_model_config(plate_configs);
         tab_object->set_model_config(object_configs);
-        tab_volume->set_model_config({});
-        tab_layer->set_model_config({});
+        bool refresh_empty_tabs = true;
+#ifdef __WXMSW__
+        refresh_empty_tabs = std::getenv("ORCA_TEST_SKIP_EMPTY_OBJECT_TABS") == nullptr;
+#endif
+        if (refresh_empty_tabs || tab_volume->has_model_config() || tab_volume->IsShownOnScreen())
+            tab_volume->set_model_config({});
+        if (refresh_empty_tabs || tab_layer->has_model_config() || tab_layer->IsShownOnScreen())
+            tab_layer->set_model_config({});
         //m_tab_active = tab_object;
     }   
     else if (is_volume_settings) {
