@@ -1,4 +1,5 @@
 #include "Plater.hpp"
+#include <chrono>
 #include "LazyPage.hpp"
 #include "../Utils/NetworkAgent.hpp"
 #include "IPrinterAgent.hpp"
@@ -23882,15 +23883,16 @@ int Plater::select_plate_by_hover_id(int hover_id, bool right_click, bool isModi
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": enter, hover_id %1%, plate_index %2%, action %3%")%hover_id % plate_index %action;
     if (action == 0)
     {
-        //select plate
+        const auto begin = std::chrono::steady_clock::now();
         ret = p->partplate_list.select_plate(plate_index);
+        const auto selected = std::chrono::steady_clock::now();
         if (!ret) {
             SimpleEvent event(EVT_GLCANVAS_PLATE_SELECT);
             p->on_plate_selected(event);
         }
         if ((!ret)&&(p->background_process.can_switch_print()))
         {
-            //select successfully
+            const auto sidebar = std::chrono::steady_clock::now();
             p->partplate_list.update_slice_context_to_current_plate(p->background_process);
             p->preview->update_gcode_result(p->partplate_list.get_current_slice_result());
             p->update_print_volume_state();
@@ -23904,6 +23906,7 @@ int Plater::select_plate_by_hover_id(int hover_id, bool right_click, bool isModi
             const auto& preset_bundle = wxGetApp().preset_bundle;
 
             part_plate->get_print(&print, &gcode_result, NULL);
+            const auto context = std::chrono::steady_clock::now();
             //always apply the current plate's print
             if (preset_bundle->get_printer_extruder_count() > 1) {
                 std::vector<int> f_maps = part_plate->get_real_filament_maps(preset_bundle->project_config);
@@ -23915,8 +23918,12 @@ int Plater::select_plate_by_hover_id(int hover_id, bool right_click, bool isModi
             }
             else
                 invalidated = p->background_process.apply(this->model(), preset_bundle->full_config(false));
+            const auto applied = std::chrono::steady_clock::now();
             bool model_fits, validate_err;
             validate_current_plate(model_fits, validate_err);
+            auto us = [](auto from, auto to) { return std::chrono::duration_cast<std::chrono::microseconds>(to - from).count(); };
+            BOOST_LOG_TRIVIAL(warning) << "plate switch " << plate_index << " us: select=" << us(begin, selected) << " sidebar=" << us(selected, sidebar)
+                << " context=" << us(sidebar, context) << " apply=" << us(context, applied) << " validate=" << us(applied, std::chrono::steady_clock::now());
 
             BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(" %1%: after apply, invalidated= %2%, previous result_valid %3% ")%__LINE__ % invalidated %result_valid;
             if (result_valid)
