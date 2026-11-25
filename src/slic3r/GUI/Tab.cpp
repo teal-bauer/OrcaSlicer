@@ -1,5 +1,6 @@
 //#include "slic3r/Utils/Serial.hpp"
 #include "Tab.hpp"
+#include <wx/stopwatch.h>
 #include "PresetHints.hpp"
 #include "libslic3r/IMEXHelpers.hpp"
 #include "libslic3r/PresetBundle.hpp"
@@ -8221,20 +8222,26 @@ bool Tab::tree_sel_change_delayed(wxCommandEvent& event)
         });
 
     try {
+        wxStopWatch timer;
+        long freeze_ms, hide_ms = 0, show_ms = 0;
         m_page_view->Freeze();
+        freeze_ms = timer.Time();
 #ifdef __WXMSW__
         if (reuse) {
             m_highlighter.invalidate();
             for (auto &group : outgoing->m_optgroups)
                 if (group->sizer) outgoing->vsizer()->Show(group->sizer, false);
+            hide_ms = timer.Time() - freeze_ms;
             if (!page->build_pending()) {
                 for (auto &group : page->m_optgroups)
                     page->vsizer()->Show(group->sizer, true);
+                show_ms = timer.Time() - freeze_ms - hide_ms;
                 page->reload_config();
             }
         } else
 #endif
             clear_pages();
+        const auto prepared_ms = timer.Time();
         throw_if_canceled();
 
         //BBS: GUI refactor
@@ -8251,11 +8258,14 @@ bool Tab::tree_sel_change_delayed(wxCommandEvent& event)
 
         //BBS: GUI refactor
         //m_hsizer->Layout();
+        const auto active_ms = timer.Time();
         m_parent->Layout();
+        const auto layout_ms = timer.Time();
         throw_if_canceled();
-        // Refresh();
-
         m_page_view->Thaw();
+        BOOST_LOG_TRIVIAL(warning) << "page envelope ms: freeze=" << freeze_ms << " hide=" << hide_ms << " show=" << show_ms
+            << " prep_rest=" << prepared_ms - freeze_ms - hide_ms - show_ms << " activate=" << active_ms - prepared_ms
+            << " layout=" << layout_ms - active_ms << " thaw=" << timer.Time() - layout_ms;
     } catch (const UIBuildCanceled&) {
 	    if (m_active_page)
 		    m_active_page->clear();
