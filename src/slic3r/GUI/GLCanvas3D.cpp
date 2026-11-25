@@ -3231,12 +3231,14 @@ void GLCanvas3D::_render_frame(bool scene_dirty, bool only_init)
     if (!reuse_scene && (_is_render_timings_enabled() || m_frame_profiler.is_averaging()))
         m_frame_profiler.begin_frame();
     Slic3r::ScopeGuard profiler_guard([this]() { m_frame_profiler.end_frame(); });
+    const auto before_scene = std::chrono::steady_clock::now();
     if (!reuse_scene) {
         _render_scene(camera, cnv_size);
         if (!overlay_tick)
             m_render_stats.increment_scene_fps_counter();
     }
 
+    const auto after_scene = std::chrono::steady_clock::now();
     if (m_canvas_type == ECanvasType::CanvasPreview && m_render_preview) {
         // BBS: GUI refactor: add canvas size as parameters
         _render_gcode_overlay(cnv_size.get_width(), cnv_size.get_height());
@@ -3246,6 +3248,7 @@ void GLCanvas3D::_render_frame(bool scene_dirty, bool only_init)
     // draw overlays
     _render_overlays();
     m_frame_profiler.mark("ui");
+    const auto after_overlays = std::chrono::steady_clock::now();
 
     const int current_fps = m_render_stats.get_fps_and_reset_if_needed();
     if (_is_fps_overlay_enabled() || _is_render_timings_enabled())
@@ -3384,7 +3387,9 @@ void GLCanvas3D::_render_frame(bool scene_dirty, bool only_init)
         const auto end = std::chrono::steady_clock::now();
         auto ms = [](auto from, auto to) { return std::chrono::duration_cast<std::chrono::milliseconds>(to-from).count(); };
         if (ms(frame_start, end) >= 50)
-            BOOST_LOG_TRIVIAL(warning) << "completion frame pre_ms=" << ms(frame_start, before_swap) << " swap_ms=" << ms(before_swap, end);
+            BOOST_LOG_TRIVIAL(warning) << "completion frame pre_ms=" << ms(frame_start, before_swap) << " swap_ms=" << ms(before_swap, end)
+                << " setup=" << ms(frame_start,before_scene) << " scene=" << ms(before_scene,after_scene)
+                << " overlays=" << ms(after_scene,after_overlays) << " finish=" << ms(after_overlays,before_swap);
         m_frame_profiler.mark("swap");
         if (!overlay_tick)
             m_render_stats.increment_fps_counter();
@@ -3499,7 +3504,10 @@ void GLCanvas3D::_render_scene(const Camera& camera, const Size& cnv_size)
         _render_shadows(camera.get_view_matrix(), camera.get_projection_matrix());
         m_frame_profiler.mark("shadows");
         // BBS: GUI refactor: add canvas size as parameters
+        const auto gcode_start = std::chrono::steady_clock::now();
         _render_gcode(cnv_size.get_width(), cnv_size.get_height());
+        const auto gcode_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-gcode_start).count();
+        if (gcode_ms >= 50) BOOST_LOG_TRIVIAL(warning) << "completion gcode ms=" << gcode_ms;
         m_frame_profiler.mark("gcode");
     }
     /* assemble render*/
