@@ -8063,7 +8063,11 @@ void Tab::activate_selected_page(std::function<void()> throw_if_canceled)
         m_page_view->Hide();
     ScopeGuard show_view([this, hide_view] { if (hide_view) m_page_view->Show(); });
 #endif
-    m_active_page->activate(m_mode, throw_if_canceled);
+#ifdef __WXMSW__
+    // update_visibility below already queues field positioning for a built page.
+    if (!wxGetEnv("ORCA_TEST_WARM_LAYOUT", nullptr) || m_active_page->build_pending())
+#endif
+        m_active_page->activate(m_mode, throw_if_canceled);
     update_changed_ui();
     update_description_lines();
     if (m_active_page && !(m_active_page->title() == "Dependencies"))
