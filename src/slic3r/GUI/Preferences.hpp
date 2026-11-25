@@ -98,6 +98,8 @@ public:
     wxString m_iot_environment_def;
 
     std::vector<wxFlexGridSizer*> f_sizers;
+    std::map<int, std::function<void()>> pending_pages;
+    void build_page(int index);
 
     wxBoxSizer *create_item_title(wxString title);
     wxBoxSizer *create_item_label(wxString label, const wxString tooltip = "", const wxString wiki_url = "");

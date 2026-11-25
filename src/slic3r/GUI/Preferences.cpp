@@ -1,4 +1,5 @@
 #include "Preferences.hpp"
+#include <cstdlib>
 #include "slic3r/plugin/host/PluginPages.hpp"
 #include "CloudProvider.hpp"
 #include "ColorPickerDialog.hpp"
@@ -1424,6 +1425,7 @@ wxBoxSizer *PreferencesDialog::create_item_network_plugin_version(wxString title
     m_network_version_combo->GetDropDown().Bind(wxEVT_COMBOBOX, [this](wxCommandEvent& e) {
         e.Skip(); // order-independent flag read after this handler returns; every path just returns
         int selection = e.GetSelection();
+        build_page(selection);
         if (selection < 0 || selection >= (int) m_available_versions.size())
             return;
 
@@ -1656,10 +1658,21 @@ PreferencesDialog::~PreferencesDialog()
 {
 }
 
+void PreferencesDialog::build_page(int index)
+{
+    auto page = pending_pages.find(index);
+    if (page == pending_pages.end()) return;
+    auto build = std::move(page->second);
+    pending_pages.erase(page);
+    build();
+}
+
 void PreferencesDialog::select_tab(PreferencesTab tab, const std::string& option)
 {
-    if (const auto index = m_tab_index.find(tab); index != m_tab_index.end())
+    if (const auto index = m_tab_index.find(tab); index != m_tab_index.end()) {
+        build_page(index->second);
         m_pref_tabs->SelectItem(index->second);
+    }
     wxWindow* control = option.empty() ? nullptr : m_parent->FindWindow(wxString(option));
     if (control == nullptr)
         return;
@@ -1848,10 +1861,16 @@ void PreferencesDialog::create_items()
     //////////////////////////
     //// FILES TAB 
     /////////////////////////////////////
+#ifdef __WXMSW__
+    const bool defer_pages = std::getenv("ORCA_TEST_LAZY_PREFERENCES") != nullptr;
+#else
+    const bool defer_pages = false;
+#endif
     m_tab_index[PreferencesTab::Files] = m_pref_tabs->AppendItem(_L("Files"));
     f_sizers.push_back(new wxFlexGridSizer(1, 1, v_gap, 0));
     g_sizer = f_sizers.back();
     g_sizer->AddGrowableCol(0, 1);
+    pending_pages[int(f_sizers.size()) - 1] = [=]() {
 
     //// FILES > Project
     g_sizer->Add(create_item_title(_L("Project")), 1, wxEXPAND);
@@ -1985,6 +2004,8 @@ void PreferencesDialog::create_items()
 #endif // _WIN32
 
     g_sizer->AddSpacer(FromDIP(10));
+    };
+    if (!defer_pages) build_page(int(f_sizers.size()) - 1);
     sizer_page->Add(g_sizer, 0, wxEXPAND);
 
     //////////////////////////
@@ -1994,6 +2015,7 @@ void PreferencesDialog::create_items()
     f_sizers.push_back(new wxFlexGridSizer(1, 1, v_gap, 0));
     g_sizer = f_sizers.back();
     g_sizer->AddGrowableCol(0, 1);
+    pending_pages[int(f_sizers.size()) - 1] = [=]() {
 
     //// BEHAVIOUR > Prepare
     g_sizer->Add(create_item_title(_L("Prepare")), 1, wxEXPAND);
@@ -2179,6 +2201,8 @@ void PreferencesDialog::create_items()
     g_sizer->Add(item_speed_dial_recents);
 
     g_sizer->AddSpacer(FromDIP(10));
+    };
+    if (!defer_pages) build_page(int(f_sizers.size()) - 1);
     sizer_page->Add(g_sizer, 0, wxEXPAND);
 
     //////////////////////////
@@ -2188,6 +2212,7 @@ void PreferencesDialog::create_items()
     f_sizers.push_back(new wxFlexGridSizer(1, 1, v_gap, 0));
     g_sizer = f_sizers.back();
     g_sizer->AddGrowableCol(0, 1);
+    pending_pages[int(f_sizers.size()) - 1] = [=]() {
 
     //// CONTROL > Camera
     g_sizer->Add(create_item_title(_L("Camera")), 1, wxEXPAND);
@@ -2225,6 +2250,8 @@ void PreferencesDialog::create_items()
     g_sizer->Add(item_shortcuts);
 
     g_sizer->AddSpacer(FromDIP(10));
+    };
+    if (!defer_pages) build_page(int(f_sizers.size()) - 1);
     sizer_page->Add(g_sizer, 0, wxEXPAND);
 
     //////////////////////////
@@ -2234,6 +2261,7 @@ void PreferencesDialog::create_items()
     f_sizers.push_back(new wxFlexGridSizer(1, 1, v_gap, 0));
     g_sizer = f_sizers.back();
     g_sizer->AddGrowableCol(0, 1);
+    pending_pages[int(f_sizers.size()) - 1] = [=]() {
 
     //// GRAPHICS > General
     g_sizer->Add(create_item_title(_L("General")), 1, wxEXPAND);
@@ -2434,6 +2462,8 @@ void PreferencesDialog::create_items()
     }
 
     g_sizer->AddSpacer(FromDIP(10));
+    };
+    if (!defer_pages) build_page(int(f_sizers.size()) - 1);
     sizer_page->Add(g_sizer, 0, wxEXPAND);
 
     //////////////////////////
@@ -2443,6 +2473,7 @@ void PreferencesDialog::create_items()
     f_sizers.push_back(new wxFlexGridSizer(1, 1, v_gap, 0));
     g_sizer = f_sizers.back();
     g_sizer->AddGrowableCol(0, 1);
+    pending_pages[int(f_sizers.size()) - 1] = [=]() {
 
     //// ONLINE > Connection
     g_sizer->Add(create_item_title(_L("Connection")), 1, wxEXPAND);
@@ -2507,6 +2538,8 @@ void PreferencesDialog::create_items()
     g_sizer->Add(item_plugin_version);
 
     g_sizer->AddSpacer(FromDIP(10));
+    };
+    if (!defer_pages) build_page(int(f_sizers.size()) - 1);
     sizer_page->Add(g_sizer, 0, wxEXPAND);
 
     //////////////////////////
@@ -2516,6 +2549,7 @@ void PreferencesDialog::create_items()
     f_sizers.push_back(new wxFlexGridSizer(1, 1, v_gap, 0));
     g_sizer = f_sizers.back();
     g_sizer->AddGrowableCol(0, 1);
+    pending_pages[int(f_sizers.size()) - 1] = [=]() {
 
     //// DEVELOPER > Settings
     g_sizer->Add(create_item_title(_L("Settings")), 1, wxEXPAND);
@@ -2568,6 +2602,8 @@ void PreferencesDialog::create_items()
 #endif
 
     g_sizer->AddSpacer(FromDIP(10));
+    };
+    if (!defer_pages) build_page(int(f_sizers.size()) - 1);
     sizer_page->Add(g_sizer, 0, wxEXPAND);
 
     /////////////////////////////////////
