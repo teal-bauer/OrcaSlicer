@@ -2231,6 +2231,7 @@ GCodeViewer::ImexMarkerPlan GCodeViewer::resolve_imex_marker_plan(const DynamicP
 //BBS: GUI refactor: add canvas width and height
 void GCodeViewer::render_scene(int canvas_width, int canvas_height)
 {
+    const auto start = std::chrono::steady_clock::now();
     glsafe(::glEnable(GL_DEPTH_TEST));
     render_shells();
     // while dragging in the solid model mode, the objects stand in for their toolpaths, cut to the
@@ -2241,10 +2242,15 @@ void GCodeViewer::render_scene(int canvas_width, int canvas_height)
     if (m_viewer.get_extrusion_roles_count() == 0)
         return;
 
+    const auto before_paths = std::chrono::steady_clock::now();
     render_toolpaths();
+    const auto after_paths = std::chrono::steady_clock::now();
     // ORCA: the markers write depth, which would hide the translucent toolpaths behind them
     if (!m_viewer.has_translucent_toolpaths())
         render_markers(canvas_width, canvas_height);
+    const auto end = std::chrono::steady_clock::now();
+    auto ms = [](auto a, auto b) { return std::chrono::duration_cast<std::chrono::milliseconds>(b-a).count(); };
+    if (ms(start,end) >= 50) BOOST_LOG_TRIVIAL(warning) << "completion gcode parts shells_ms=" << ms(start,before_paths) << " paths_ms=" << ms(before_paths,after_paths) << " markers_ms=" << ms(after_paths,end);
 }
 
 void GCodeViewer::render_markers(int canvas_width, int canvas_height)
