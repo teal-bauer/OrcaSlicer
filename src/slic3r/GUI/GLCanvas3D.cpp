@@ -3218,6 +3218,22 @@ void GLCanvas3D::_render_frame(bool scene_dirty, bool only_init)
     const bool overlay_tick = m_fps_overlay_tick;
     m_fps_overlay_tick = false;
 
+    bool early_preview_overlay = false;
+#ifdef __WXMSW__
+    static const bool same_frame_scrub = std::getenv("ORCA_TEST_ACTIVE_PREVIEW_SCRUB") != nullptr;
+    early_preview_overlay = same_frame_scrub && m_canvas_type == ECanvasType::CanvasPreview &&
+        m_render_preview && m_gcode_viewer.has_data() && m_gcode_viewer.is_slider_dragging();
+#endif
+    if (early_preview_overlay) {
+        auto layers = m_gcode_viewer.get_layers_slider();
+        auto moves = m_gcode_viewer.get_moves_slider();
+        const auto lower = layers->GetLowerValue(), upper = layers->GetHigherValue();
+        const auto first = moves->GetLowerValueD(), last = moves->GetHigherValueD();
+        _render_gcode_overlay(cnv_size.get_width(), cnv_size.get_height());
+        scene_dirty |= lower != layers->GetLowerValue() || upper != layers->GetHigherValue() ||
+                       first != moves->GetLowerValueD() || last != moves->GetHigherValueD();
+    }
+
     // Whether the preview draws its reduced set is decided before the cached scene is consulted,
     // since switching changes what the scene pass draws.
     if (m_canvas_type == ECanvasType::CanvasPreview && m_render_preview && m_gcode_viewer.has_data() && _update_preview_interaction())
@@ -3236,7 +3252,7 @@ void GLCanvas3D::_render_frame(bool scene_dirty, bool only_init)
             m_render_stats.increment_scene_fps_counter();
     }
 
-    if (m_canvas_type == ECanvasType::CanvasPreview && m_render_preview) {
+    if (!early_preview_overlay && m_canvas_type == ECanvasType::CanvasPreview && m_render_preview) {
         // BBS: GUI refactor: add canvas size as parameters
         _render_gcode_overlay(cnv_size.get_width(), cnv_size.get_height());
         m_frame_profiler.mark("legend");
