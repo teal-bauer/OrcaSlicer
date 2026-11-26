@@ -6156,9 +6156,11 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
                     deselect_all();
         }
         else if (evt.RightUp() && !is_layers_editing_enabled()) {
-            // forces a frame render to ensure that m_hover_volume_idxs is updated even when the user right clicks while
-            // the context menu is already shown
-            render();
+            // Refresh picking even when another context menu was already open.
+            if (m_canvas_type == CanvasView3D && !m_dirty && wxGetEnv("ORCA_TEST_CONTEXT_PICK_CACHED_SCENE", nullptr))
+                _render_frame(false);
+            else
+                render();
             // Orca: do not select the hovered volume when ending a camera pan/rotation
             const bool camera_dragged = m_mouse.ignore_right_up;
             if (!camera_dragged && !m_hover_volume_idxs.empty()) {
