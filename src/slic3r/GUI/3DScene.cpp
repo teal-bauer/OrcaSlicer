@@ -47,6 +47,7 @@
 #include "libslic3r/TriangleMesh.hpp"
 #include "libslic3r/QuadricEdgeCollapse.hpp"
 #include <chrono>
+#include <tbb/task_arena.h>
 #include <math.h>
 #include "libslic3r/ObjectID.hpp"
 #include "libslic3r/libslic3r.h"
@@ -125,6 +126,10 @@ Slic3r::ColorRGBA adjust_color_for_rendering(const Slic3r::ColorRGBA &colors)
 }
 
 namespace Slic3r {
+
+struct GLVolume::PendingDragMesh {
+    std::shared_ptr<indexed_triangle_set> ready;
+};
 
 
 const float GLVolume::SinkingContours::HalfWidth = 0.25f;
@@ -767,15 +772,30 @@ int GLVolumeCollection::load_object_volume(
     if (wxGetEnv("ORCA_TEST_DRAG_DISPLAY_MESH", nullptr) && !in_assemble_view && need_raycaster &&
         model_volume->is_model_part() && model_volume->mmu_segmentation_facets.empty() && mesh->its.indices.size() >= 32000) {
         const auto start = std::chrono::steady_clock::now();
-        indexed_triangle_set display = mesh->its;
-        its_quadric_edge_collapse(display, 3600);
-        const auto simplified = std::chrono::steady_clock::now();
-        v.drag_display_model = std::make_unique<GUI::GLModel>();
-        v.drag_display_model->init_from(display);
-        if (wxGetEnv("ORCA_TEST_TRACE_DRAG_MESH", nullptr)) {
-            BOOST_LOG_TRIVIAL(info) << "drag display build faces=" << mesh->its.indices.size() << " output=" << display.indices.size()
-                << " simplify_us=" << std::chrono::duration_cast<std::chrono::microseconds>(simplified - start).count()
-                << " total_us=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+        if (wxGetEnv("ORCA_TEST_ASYNC_DRAG_MESH", nullptr)) {
+            static tbb::task_arena arena(1, 0);
+            v.pending_drag_mesh = std::make_shared<GLVolume::PendingDragMesh>();
+            arena.enqueue([slot = std::weak_ptr(v.pending_drag_mesh), source = std::weak_ptr(mesh)] {
+                auto input = source.lock();
+                if (!input || slot.expired()) return;
+                auto display = std::make_shared<indexed_triangle_set>(input->its);
+                its_quadric_edge_collapse(*display, 3600);
+                if (auto pending = slot.lock()) std::atomic_store(&pending->ready, std::move(display));
+            });
+            if (wxGetEnv("ORCA_TEST_TRACE_DRAG_MESH", nullptr))
+                BOOST_LOG_TRIVIAL(info) << "drag display enqueue faces=" << mesh->its.indices.size() << " total_us="
+                    << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+        } else {
+            indexed_triangle_set display = mesh->its;
+            its_quadric_edge_collapse(display, 3600);
+            const auto simplified = std::chrono::steady_clock::now();
+            v.drag_display_model = std::make_unique<GUI::GLModel>();
+            v.drag_display_model->init_from(display);
+            if (wxGetEnv("ORCA_TEST_TRACE_DRAG_MESH", nullptr)) {
+                BOOST_LOG_TRIVIAL(info) << "drag display build faces=" << mesh->its.indices.size() << " output=" << display.indices.size()
+                    << " simplify_us=" << std::chrono::duration_cast<std::chrono::microseconds>(simplified - start).count()
+                    << " total_us=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+            }
         }
     }
     if (need_raycaster) { v.mesh_raycaster = std::make_unique<GUI::MeshRaycaster>(mesh); }
@@ -1223,6 +1243,13 @@ void GLVolumeCollection::render(GLVolumeCollection::ERenderType       type,
             glsafe(::glStencilMask(GUI::SelectionOutline::StencilBit));
             glsafe(::glStencilFunc(GL_ALWAYS, GUI::SelectionOutline::StencilBit, GUI::SelectionOutline::StencilBit));
             glsafe(::glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE));
+        }
+        if (m_use_drag_display_models && volume.first->pending_drag_mesh) {
+            if (auto display = std::atomic_load(&volume.first->pending_drag_mesh->ready)) {
+                volume.first->drag_display_model = std::make_unique<GUI::GLModel>();
+                volume.first->drag_display_model->init_from(*display);
+                volume.first->pending_drag_mesh.reset();
+            }
         }
         if (m_use_drag_display_models && volume.first->drag_display_model && !volume.first->is_left_handed() &&
             volume.first->tverts_range == std::make_pair<size_t, size_t>(0, -1)) {

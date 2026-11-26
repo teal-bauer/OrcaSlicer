@@ -246,6 +246,8 @@ public:
 
     GUI::GLModel            model;
     std::unique_ptr<GUI::GLModel> drag_display_model;
+    struct PendingDragMesh;
+    std::shared_ptr<PendingDragMesh> pending_drag_mesh;
     // raycaster used for picking
     std::unique_ptr<GUI::MeshRaycaster> mesh_raycaster;
     // BBS
