@@ -4501,6 +4501,7 @@ void GLCanvas3D::load_gcode_preview(const GCodeProcessorResult& gcode_result, co
     m_gcode_viewer.load_as_gcode(gcode_result, *this->fff_print(), str_tool_colors, str_color_print_colors, wxGetApp().plater()->build_volume(), exclude_bounding_box,
         wxGetApp().get_mode(), only_gcode);
     m_gcode_layers_times_cache = m_gcode_viewer.get_layers_times();
+    m_preview_first_frame_pending = wxGetEnv("ORCA_TEST_REDUCED_FIRST_PREVIEW", nullptr);
 
     m_gcode_viewer.get_moves_slider()->SetHigherValue(m_gcode_viewer.get_moves_slider()->GetMaxValue());
 
@@ -10762,6 +10763,10 @@ void GLCanvas3D::_render_wireframe_overlay()
 bool GLCanvas3D::_update_preview_interaction()
 {
     const auto now = std::chrono::steady_clock::now();
+    if (m_preview_first_frame_pending) {
+        m_preview_first_frame_pending = false;
+        m_preview_interaction_until = now + std::chrono::milliseconds(150);
+    }
     const bool settling = now < m_preview_interaction_until;
     const bool dragging = is_user_interacting();
     const bool was_reduced = m_gcode_viewer.is_reduced_detail();

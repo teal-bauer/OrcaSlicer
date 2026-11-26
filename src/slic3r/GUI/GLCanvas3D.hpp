@@ -888,6 +888,7 @@ private:
     std::chrono::time_point<std::chrono::steady_clock> m_preview_interaction_until{};
     // whether the frame that restores the toolpaths once that time is up is still owed
     bool m_preview_settle_pending{ false };
+    bool m_preview_first_frame_pending{ false };
 
     //BBS:add plate related logic
     mutable std::vector<int> m_hover_volume_idxs;
