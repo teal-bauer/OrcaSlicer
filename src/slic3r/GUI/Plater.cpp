@@ -23882,9 +23882,12 @@ int Plater::select_plate_by_hover_id(int hover_id, bool right_click, bool isModi
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": enter, hover_id %1%, plate_index %2%, action %3%")%hover_id % plate_index %action;
     if (action == 0)
     {
-        //select plate
+        const bool present_switch = !right_click && plate_index != p->partplate_list.get_curr_plate_index() &&
+                                    wxGetEnv("ORCA_TEST_PRESENT_PLATE_SWITCH", nullptr) && is_view3D_shown();
         ret = p->partplate_list.select_plate(plate_index);
         if (!ret) {
+            if (present_switch && canvas3D()->get_selection().is_empty())
+                canvas3D()->render();
             SimpleEvent event(EVT_GLCANVAS_PLATE_SELECT);
             p->on_plate_selected(event);
         }
