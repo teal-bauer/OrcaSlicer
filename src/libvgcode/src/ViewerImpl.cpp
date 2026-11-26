@@ -5,6 +5,7 @@
 #include "ViewerImpl.hpp"
 #include "../include/GCodeInputData.hpp"
 #include "Shaders.hpp"
+#include <cstdlib>
 #include "ShadersES.hpp"
 #include "OpenGLUtils.hpp"
 #include "Utils.hpp"
@@ -808,7 +809,9 @@ void ViewerImpl::init(const std::string& opengl_context_version)
 #ifdef ENABLE_OPENGL_ES
     m_segments_shader_id = init_shader("segments", Segments_Vertex_Shader_ES, Segments_Fragment_Shader_ES);
 #else
-    m_segments_shader_id = init_shader("segments", Segments_Vertex_Shader, Segments_Fragment_Shader, { "fragment_color", "oit_reveal", "oit_front" });
+    const std::string segments_vs = std::getenv("ORCA_TEST_PROJECT_TOOLPATH_AXIS") ?
+        with_define(Segments_Vertex_Shader, "PROJECT_VIEW_AXIS") : Segments_Vertex_Shader;
+    m_segments_shader_id = init_shader("segments", segments_vs.c_str(), Segments_Fragment_Shader, { "fragment_color", "oit_reveal", "oit_front" });
     m_uni_segments_oit_pass_id        = glGetUniformLocation(m_segments_shader_id, "oit_pass");
     m_uni_segments_opaque_depth_id    = glGetUniformLocation(m_segments_shader_id, "opaque_depth");
     m_uni_segments_front_depth_id     = glGetUniformLocation(m_segments_shader_id, "front_depth");
