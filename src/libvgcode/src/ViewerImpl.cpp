@@ -5,6 +5,8 @@
 #include "ViewerImpl.hpp"
 #include "../include/GCodeInputData.hpp"
 #include "Shaders.hpp"
+#include <cstdio>
+#include <cstdlib>
 #include "ShadersES.hpp"
 #include "OpenGLUtils.hpp"
 #include "Utils.hpp"
@@ -2362,6 +2364,12 @@ void ViewerImpl::render_segments(const Mat4x4& view_matrix, const Mat4x4& projec
     if (m_texture_data.get_enabled_segments_count() == 0)
 #else
     const ActiveSet segments = active_segments();
+    static const bool trace = std::getenv("ORCA_TEST_TRACE_PREVIEW_DETAIL") != nullptr;
+    if (trace && !translucent) {
+        std::fprintf(stderr, "Preview detail: reduced=%d active=%zu full=%zu shell=%zu\n", int(is_reduced_detail()),
+                     segments.count, m_enabled_segments_count, m_enabled_segments_reduced_count);
+        std::fflush(stderr);
+    }
     if (segments.count == 0)
 #endif // ENABLE_OPENGL_ES
         return;
