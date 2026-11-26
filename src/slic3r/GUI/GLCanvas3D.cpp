@@ -5879,6 +5879,9 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
                             m_gizmos.update_data();
                             post_event(SimpleEvent(EVT_GLCANVAS_OBJECT_SELECT));
                             m_dirty = true;
+                            if (m_canvas_type == CanvasView3D && !ctrl_down && !alt_down && !evt.ShiftDown() &&
+                                !any_gizmo_active && wxGetEnv("ORCA_TEST_PRESENT_MODEL_OUTLINE", nullptr))
+                                render();
                         }
                     }
                 }
