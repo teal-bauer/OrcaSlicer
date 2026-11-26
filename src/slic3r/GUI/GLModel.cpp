@@ -1,5 +1,6 @@
 #include "libslic3r/libslic3r.h"
 #include "GLModel.hpp"
+#include <cstring>
 
 #include "3DScene.hpp"
 #include "GUI_App.hpp"
@@ -469,6 +470,19 @@ void GLModel::init_from(const indexed_triangle_set& its)
                 data.add_vertex(vertex[j], n);
             data.add_triangle(vertices_counter, vertices_counter + 1, vertices_counter + 2);
             vertices_counter += 3;
+        }
+    }
+
+    // Keep gl_VertexID % 3 unchanged for the outline mask's barycentric coordinates.
+    if (wxGetEnv("ORCA_TEST_SHARE_MESH_CORNERS", nullptr)) {
+        for (unsigned int i = 3; i < data.indices.size(); ++i) {
+            for (unsigned int distance = 3; distance <= 30 && distance <= i; distance += 3) {
+                const unsigned int other = data.indices[i - distance];
+                if (std::memcmp(&data.vertices[6 * size_t(i)], &data.vertices[6 * size_t(other)], 6 * sizeof(float)) == 0) {
+                    data.indices[i] = other;
+                    break;
+                }
+            }
         }
     }
 
