@@ -45,6 +45,7 @@
 #include <memory>
 #include "slic3r/GUI/MeshUtils.hpp"
 #include "libslic3r/TriangleMesh.hpp"
+#include "libslic3r/QuadricEdgeCollapse.hpp"
 #include <math.h>
 #include "libslic3r/ObjectID.hpp"
 #include "libslic3r/libslic3r.h"
@@ -762,6 +763,13 @@ int GLVolumeCollection::load_object_volume(
     v.name = model_volume->name;
 
     v.model.init_from(*mesh);
+    if (wxGetEnv("ORCA_TEST_DRAG_DISPLAY_MESH", nullptr) && !in_assemble_view && need_raycaster &&
+        model_volume->is_model_part() && model_volume->mmu_segmentation_facets.empty() && mesh->its.indices.size() >= 32000) {
+        indexed_triangle_set display = mesh->its;
+        its_quadric_edge_collapse(display, 3600);
+        v.drag_display_model = std::make_unique<GUI::GLModel>();
+        v.drag_display_model->init_from(display);
+    }
     if (need_raycaster) { v.mesh_raycaster = std::make_unique<GUI::MeshRaycaster>(mesh); }
     v.composite_id = GLVolume::CompositeID(obj_idx, volume_idx, instance_idx);
 
@@ -1208,7 +1216,12 @@ void GLVolumeCollection::render(GLVolumeCollection::ERenderType       type,
             glsafe(::glStencilFunc(GL_ALWAYS, GUI::SelectionOutline::StencilBit, GUI::SelectionOutline::StencilBit));
             glsafe(::glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE));
         }
-        volume.first->render();
+        if (m_use_drag_display_models && volume.first->drag_display_model && !volume.first->is_left_handed() &&
+            volume.first->tverts_range == std::make_pair<size_t, size_t>(0, -1)) {
+            volume.first->drag_display_model->set_color(volume.first->model.get_color());
+            volume.first->drag_display_model->render(shader);
+        } else
+            volume.first->render();
         if (outlined) {
             glsafe(::glDisable(GL_STENCIL_TEST));
             glsafe(::glStencilMask(0xFF));
