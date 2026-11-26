@@ -3437,6 +3437,10 @@ void GLCanvas3D::_render_frame(bool scene_dirty, bool only_init)
 // capture an overlay-only frame reuses.
 void GLCanvas3D::_render_scene(const Camera& camera, const Size& cnv_size)
 {
+    const bool trace_scene = this == selection_probe_canvas && selection_probe_frames == 0 && selection_probe_us() < 1200000;
+    long long phase[10]{};
+    auto stamp = [&](unsigned n) { if (trace_scene) phase[n] = selection_probe_us(); };
+    stamp(0);
     // Recorded by PartPlate::render_icons() below, when it runs.
     wxGetApp().plater()->get_partplate_list().clear_hover_tooltip();
     glsafe(::glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT));
@@ -3477,6 +3481,7 @@ void GLCanvas3D::_render_scene(const Camera& camera, const Size& cnv_size)
 #endif
             _render_bed(camera.get_view_matrix(), camera.get_projection_matrix(), !camera.is_looking_downward(), show_axes);
         }
+        stamp(1);
         m_frame_profiler.mark("bed");
         // Exception: the painting gizmos hide the bed mesh on purpose and draw the plate instead,
         // so there the plate list is the only bed reference in the scene.
@@ -3485,13 +3490,16 @@ void GLCanvas3D::_render_scene(const Camera& camera, const Size& cnv_size)
         if (m_design_canvas && show_bed)
             // Design tab: replace the plate's corner-origin grid with the origin-centred CAD grid.
             _render_cad_grid(camera.get_view_matrix(), camera.get_projection_matrix());
+        stamp(2);
         m_frame_profiler.mark("plates");
         //BBS: add outline logic
         // Depth pass for object-on-object and self shadows; consumed by the gouraud shader below.
         _render_shadows(camera.get_view_matrix(), camera.get_projection_matrix());
+        stamp(3);
         m_frame_profiler.mark("shadows");
         _render_objects(GLVolumeCollection::ERenderType::Opaque, !m_gizmos.is_running());
         _render_below_plate_volumes();
+        stamp(4);
         m_frame_profiler.mark("objects");
         // Collision previews follow the same visibility rule as the bed.
         const bool show_exclusion_intersections = m_show_bed &&
@@ -3504,10 +3512,13 @@ void GLCanvas3D::_render_scene(const Camera& camera, const Size& cnv_size)
                 camera.get_view_matrix(), camera.get_projection_matrix());
         _render_sla_slices();
         _render_selection();
+        stamp(5);
         _render_objects(GLVolumeCollection::ERenderType::Transparent, !m_gizmos.is_running());
         _render_wireframe_overlay();
+        stamp(6);
         m_frame_profiler.mark("transparent");
         _render_selection_outline();
+        stamp(7);
         m_frame_profiler.mark("outline");
     }
     /* preview render */
@@ -3597,7 +3608,15 @@ void GLCanvas3D::_render_scene(const Camera& camera, const Size& cnv_size)
         m_design_sketch_tool->render(*this);
 #endif
 
+    stamp(8);
     _capture_scene_cache(camera);
+    stamp(9);
+    if (trace_scene) {
+        BOOST_LOG_TRIVIAL(info) << "selection_scene_us bed=" << phase[1]-phase[0] << " plates=" << phase[2]-phase[1]
+            << " shadows=" << phase[3]-phase[2] << " opaque=" << phase[4]-phase[3] << " selection=" << phase[5]-phase[4]
+            << " transparent=" << phase[6]-phase[5] << " outline=" << phase[7]-phase[6] << " post=" << phase[8]-phase[7]
+            << " cache=" << phase[9]-phase[8];
+    }
     m_frame_profiler.mark("cache");
 }
 
