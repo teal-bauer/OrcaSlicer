@@ -4511,7 +4511,8 @@ void GLCanvas3D::load_gcode_preview(const GCodeProcessorResult& gcode_result, co
     }
 
     set_as_dirty();
-    request_extra_frame();
+    if (!wxGetEnv("ORCA_TEST_PREVIEW_LOAD_SINGLE_FRAME", nullptr))
+        request_extra_frame();
 }
 
 void GLCanvas3D::load_sla_preview()
