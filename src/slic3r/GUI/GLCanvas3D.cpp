@@ -3094,6 +3094,14 @@ void GLCanvas3D::render(bool only_init)
     _render_frame(true, only_init);
 }
 
+namespace {
+using PresentClock = std::chrono::steady_clock;
+thread_local const GLCanvas3D* selection_probe_canvas = nullptr;
+thread_local PresentClock::time_point selection_probe_down;
+thread_local unsigned selection_probe_frames = 0;
+long long selection_probe_us() { return std::chrono::duration_cast<std::chrono::microseconds>(PresentClock::now() - selection_probe_down).count(); }
+}
+
 void GLCanvas3D::_render_frame(bool scene_dirty, bool only_init)
 {
     if (m_in_render) {
@@ -3103,6 +3111,8 @@ void GLCanvas3D::_render_frame(bool scene_dirty, bool only_init)
     }
 
     m_in_render = true;
+    const bool trace_selection = this == selection_probe_canvas && selection_probe_frames < 3 && selection_probe_us() < 1200000;
+    const auto trace_begin = trace_selection ? selection_probe_us() : 0;
     ++s_frames_in_progress;
     Slic3r::ScopeGuard in_render_guard([this]() { m_in_render = false; --s_frames_in_progress; });
     (void)in_render_guard;
@@ -3246,12 +3256,14 @@ void GLCanvas3D::_render_frame(bool scene_dirty, bool only_init)
     if (!reuse_scene && (_is_render_timings_enabled() || m_frame_profiler.is_averaging()))
         m_frame_profiler.begin_frame();
     Slic3r::ScopeGuard profiler_guard([this]() { m_frame_profiler.end_frame(); });
+    const auto trace_scene_start = trace_selection ? selection_probe_us() : 0;
     if (!reuse_scene) {
         _render_scene(camera, cnv_size);
         if (!overlay_tick)
             m_render_stats.increment_scene_fps_counter();
     }
 
+    const auto trace_scene_end = trace_selection ? selection_probe_us() : 0;
     if (!early_preview_overlay && m_canvas_type == ECanvasType::CanvasPreview && m_render_preview) {
         // BBS: GUI refactor: add canvas size as parameters
         _render_gcode_overlay(cnv_size.get_width(), cnv_size.get_height());
@@ -3394,7 +3406,13 @@ void GLCanvas3D::_render_frame(bool scene_dirty, bool only_init)
     // belongs to: on Mesa/X11 that is a fatal BadMatch, not the no-op it is on other platforms. Draws
     // already issued before this point cannot be redirected - only this swap is protected.
     if (m_canvas->IsShownOnScreen() && _set_current()) {
+        const auto trace_swap = trace_selection ? selection_probe_us() : 0;
         m_canvas->SwapBuffers();
+        if (trace_selection) {
+            BOOST_LOG_TRIVIAL(info) << "selection_present_us frame=" << ++selection_probe_frames << " reused=" << reuse_scene
+                << " begin=" << trace_begin << " scene_start=" << trace_scene_start << " scene_end=" << trace_scene_end
+                << " swap_start=" << trace_swap << " swap_end=" << selection_probe_us();
+        }
         m_frame_profiler.mark("swap");
         if (!overlay_tick)
             m_render_stats.increment_fps_counter();
@@ -5847,6 +5865,12 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
 
                 if (m_picking_enabled && (m_gizmos.is_allow_multi_select_parts_or_objects() || !evt.CmdDown()) && (!m_hover_volume_idxs.empty())) {
                     if (evt.LeftDown() && !m_hover_volume_idxs.empty()) {
+                        static const bool trace_click = std::getenv("ORCA_TEST_SELECTION_PRESENT_TIMELINE") != nullptr;
+                        if (trace_click) {
+                            selection_probe_canvas = this;
+                            selection_probe_down = PresentClock::now();
+                            selection_probe_frames = 0;
+                        }
                         int volume_idx = get_first_hover_volume_idx();
                         bool already_selected = m_selection.contains_volume(volume_idx);
                         bool ctrl_down = evt.CmdDown();
