@@ -10388,6 +10388,9 @@ void GLCanvas3D::_render_objects(GLVolumeCollection::ERenderType type, bool with
 
     glsafe(::glEnable(GL_DEPTH_TEST));
 
+    m_volumes.set_use_drag_display_models(m_canvas_type == CanvasView3D && type == GLVolumeCollection::ERenderType::Opaque &&
+        m_mouse.dragging && m_mouse.drag.move_volume_idx >= 0 && m_gizmos.get_current() == nullptr && !_is_xray_view_active());
+    Slic3r::ScopeGuard drag_display_guard([this]() { m_volumes.set_use_drag_display_models(false); });
     m_camera_clipping_plane = _get_volumes_clipping_plane();
 
     if (m_picking_enabled)

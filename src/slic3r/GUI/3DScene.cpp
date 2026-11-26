@@ -45,6 +45,8 @@
 #include <memory>
 #include "slic3r/GUI/MeshUtils.hpp"
 #include "libslic3r/TriangleMesh.hpp"
+#include "libslic3r/QuadricEdgeCollapse.hpp"
+#include <tbb/task_arena.h>
 #include <math.h>
 #include "libslic3r/ObjectID.hpp"
 #include "libslic3r/libslic3r.h"
@@ -123,6 +125,10 @@ Slic3r::ColorRGBA adjust_color_for_rendering(const Slic3r::ColorRGBA &colors)
 }
 
 namespace Slic3r {
+
+struct GLVolume::PendingDragMesh {
+    std::shared_ptr<indexed_triangle_set> ready;
+};
 
 
 const float GLVolume::SinkingContours::HalfWidth = 0.25f;
@@ -762,6 +768,18 @@ int GLVolumeCollection::load_object_volume(
     v.name = model_volume->name;
 
     v.model.init_from(*mesh);
+    if (wxGetEnv("ORCA_TEST_DRAG_DISPLAY_MESH", nullptr) && !in_assemble_view && need_raycaster &&
+        model_volume->is_model_part() && model_volume->mmu_segmentation_facets.empty() && mesh->its.indices.size() >= 32000) {
+        static tbb::task_arena arena(1, 0);
+        v.pending_drag_mesh = std::make_shared<GLVolume::PendingDragMesh>();
+        arena.enqueue([slot = std::weak_ptr(v.pending_drag_mesh), source = std::weak_ptr(mesh)] {
+            auto input = source.lock();
+            if (!input || slot.expired()) return;
+            auto display = std::make_shared<indexed_triangle_set>(input->its);
+            its_quadric_edge_collapse(*display, 3600);
+            if (auto pending = slot.lock()) std::atomic_store(&pending->ready, std::move(display));
+        });
+    }
     if (need_raycaster) { v.mesh_raycaster = std::make_unique<GUI::MeshRaycaster>(mesh); }
     v.composite_id = GLVolume::CompositeID(obj_idx, volume_idx, instance_idx);
 
@@ -1208,7 +1226,26 @@ void GLVolumeCollection::render(GLVolumeCollection::ERenderType       type,
             glsafe(::glStencilFunc(GL_ALWAYS, GUI::SelectionOutline::StencilBit, GUI::SelectionOutline::StencilBit));
             glsafe(::glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE));
         }
-        volume.first->render();
+        if (m_use_drag_display_models && volume.first->pending_drag_mesh) {
+            if (auto display = std::atomic_load(&volume.first->pending_drag_mesh->ready)) {
+                volume.first->drag_display_model = std::make_unique<GUI::GLModel>();
+                volume.first->drag_display_model->init_from(*display);
+                volume.first->pending_drag_mesh.reset();
+            }
+        }
+        const auto use_drag_mesh = [&] {
+            if (!m_use_drag_display_models || !volume.first->drag_display_model || volume.first->is_left_handed() ||
+                volume.first->tverts_range != std::make_pair<size_t, size_t>(0, -1)) return false;
+            // Color painting can change after the display mesh was prepared.
+            const auto& objects = GUI::wxGetApp().model().objects;
+            const size_t obj = volume.first->object_idx(), part = volume.first->volume_idx();
+            return obj < objects.size() && part < objects[obj]->volumes.size() && objects[obj]->volumes[part]->mmu_segmentation_facets.empty();
+        };
+        if (use_drag_mesh()) {
+            volume.first->drag_display_model->set_color(volume.first->model.get_color());
+            volume.first->drag_display_model->render(shader);
+        } else
+            volume.first->render();
         if (outlined) {
             glsafe(::glDisable(GL_STENCIL_TEST));
             glsafe(::glStencilMask(0xFF));

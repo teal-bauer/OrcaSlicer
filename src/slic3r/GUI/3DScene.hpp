@@ -245,6 +245,9 @@ public:
     EHoverState         	hover;
 
     GUI::GLModel            model;
+    std::unique_ptr<GUI::GLModel> drag_display_model;
+    struct PendingDragMesh;
+    std::shared_ptr<PendingDragMesh> pending_drag_mesh;
     // raycaster used for picking
     std::unique_ptr<GUI::MeshRaycaster> mesh_raycaster;
     // BBS
@@ -458,6 +461,7 @@ private:
 
     Slope m_slope;
     bool m_show_sinking_contours = false;
+    bool m_use_drag_display_models = false;
 
 public:
     GLVolumePtrs volumes;
@@ -550,6 +554,7 @@ public:
     float get_slope_normal_z() const { return m_slope.normal_z; }
     void set_slope_normal_z(float normal_z) { m_slope.normal_z = normal_z; }
     void set_default_slope_normal_z() { m_slope.normal_z = -::cos(Geometry::deg2rad(90.0f - 45.0f)); }
+    void set_use_drag_display_models(bool use) { m_use_drag_display_models = use; }
     void set_show_sinking_contours(bool show) { m_show_sinking_contours = show; }
 
     // returns true if all the volumes are completely contained in the print volume
