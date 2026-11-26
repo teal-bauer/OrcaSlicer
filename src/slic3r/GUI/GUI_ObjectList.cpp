@@ -74,6 +74,10 @@
 #include <boost/log/trivial.hpp>
 #include <wx/arrstr.h>
 #include <wx/dc.h>
+#ifdef __WXMSW__
+#include <glad/gl.h>
+#include <wx/glcanvas.h>
+#endif
 #include <wx/gdicmn.h>
 #include <wx/colour.h>
 #include <wx/dataview.h>
@@ -5488,9 +5492,14 @@ void ObjectList::update_selections_on_canvas()
     if (canvas_type != GLCanvas3D::ECanvasType::CanvasPreview)
         wxGetApp().plater()->get_current_canvas3D()->update_gizmos_on_off_state();
     static const bool defer_prepare_render = std::getenv("ORCA_TEST_DEFER_TREE_RENDER") != nullptr;
-    if (defer_prepare_render && canvas_type == GLCanvas3D::ECanvasType::CanvasView3D)
+    if (defer_prepare_render && canvas_type == GLCanvas3D::ECanvasType::CanvasView3D) {
         canvas->set_as_dirty();
-    else
+#ifdef __WXMSW__
+        static const bool request_paint = std::getenv("ORCA_TEST_PAINT_DEFERRED_TREE") != nullptr;
+        if (request_paint)
+            canvas->get_wxglcanvas()->Refresh(false);
+#endif
+    } else
         wxGetApp().plater()->canvas3D()->render();
 }
 
