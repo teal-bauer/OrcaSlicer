@@ -46,6 +46,7 @@
 #include "slic3r/GUI/MeshUtils.hpp"
 #include "libslic3r/TriangleMesh.hpp"
 #include "libslic3r/QuadricEdgeCollapse.hpp"
+#include <chrono>
 #include <math.h>
 #include "libslic3r/ObjectID.hpp"
 #include "libslic3r/libslic3r.h"
@@ -765,10 +766,17 @@ int GLVolumeCollection::load_object_volume(
     v.model.init_from(*mesh);
     if (wxGetEnv("ORCA_TEST_DRAG_DISPLAY_MESH", nullptr) && !in_assemble_view && need_raycaster &&
         model_volume->is_model_part() && model_volume->mmu_segmentation_facets.empty() && mesh->its.indices.size() >= 32000) {
+        const auto start = std::chrono::steady_clock::now();
         indexed_triangle_set display = mesh->its;
         its_quadric_edge_collapse(display, 3600);
+        const auto simplified = std::chrono::steady_clock::now();
         v.drag_display_model = std::make_unique<GUI::GLModel>();
         v.drag_display_model->init_from(display);
+        if (wxGetEnv("ORCA_TEST_TRACE_DRAG_MESH", nullptr)) {
+            BOOST_LOG_TRIVIAL(info) << "drag display build faces=" << mesh->its.indices.size() << " output=" << display.indices.size()
+                << " simplify_us=" << std::chrono::duration_cast<std::chrono::microseconds>(simplified - start).count()
+                << " total_us=" << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+        }
     }
     if (need_raycaster) { v.mesh_raycaster = std::make_unique<GUI::MeshRaycaster>(mesh); }
     v.composite_id = GLVolume::CompositeID(obj_idx, volume_idx, instance_idx);
